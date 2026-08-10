@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Background from "./Background";
 
 const API_URL = "http://127.0.0.1:8000";
@@ -13,9 +13,90 @@ function App() {
   const [bidding, setBidding] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [nextLoading, setNextLoading] = useState(false);
+  const [auctionLoading, setAuctionLoading] = useState(false);
+  const [recovering, setRecovering] = useState(true);
 
   const [bidAmount, setBidAmount] = useState(150);
   const [error, setError] = useState("");
+
+  // ==========================================================
+  // RECOVER ACTIVE GAME AFTER REFRESH
+  // ==========================================================
+
+  useEffect(() => {
+    const recoverGame = async () => {
+      const savedGameId = localStorage.getItem("algobid_game_id");
+
+      if (!savedGameId) {
+        setRecovering(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${API_URL}/api/game/${savedGameId}`
+        );
+
+        if (!response.ok) throw new Error("Game recovery failed");
+
+        const data = await response.json();
+
+        if (!data.success) throw new Error(data.error);
+
+        setGame(data);
+
+        if (data.status === "completed") {
+          setFinalGame({
+            success: true,
+            game_complete: true,
+            game_id: data.game_id,
+            status: data.status,
+            player: data.players.find((p) => p.id === "player"),
+            round_history: data.round_history,
+          });
+        } else if (data.status === "round_complete" && data.round_history?.length) {
+          const lastRound =
+            data.round_history[data.round_history.length - 1];
+
+          const winner = data.players.find(
+            (p) => p.id === lastRound.winner.id
+          );
+
+          setResult({
+            success: true,
+            game_id: data.game_id,
+            round: lastRound.round,
+            problem: lastRound.problem,
+            winner: lastRound.winner,
+            winning_bid: lastRound.winning_bid,
+            remaining_credits: winner?.credits ?? 0,
+            score: winner?.score ?? 0,
+            problems_won: winner?.problems_won ?? [],
+            status: data.status,
+          });
+        } else if (data.status === "auction") {
+          setAuction({
+            success: true,
+            game_id: data.game_id,
+            round: data.round,
+            total_rounds: data.total_rounds,
+            problem: data.current_problem,
+            current_bid: data.current_bid,
+            current_leader: data.current_leader,
+            status: data.status,
+          });
+          setBidAmount(data.current_bid + 50);
+        }
+      } catch (err) {
+        console.warn("Could not recover game:", err);
+        localStorage.removeItem("algobid_game_id");
+      } finally {
+        setRecovering(false);
+      }
+    };
+
+    recoverGame();
+  }, []);
 
   // ==========================================================
   // START GAME
@@ -28,8 +109,11 @@ function App() {
     setError("");
 
     try {
+      const firstTime =
+        localStorage.getItem("algobid_has_played") !== "true";
+
       const response = await fetch(
-        `${API_URL}/api/game/start`,
+        `${API_URL}/api/game/start?first_time=${firstTime}`,
         {
           method: "POST",
           headers: {
@@ -45,6 +129,7 @@ function App() {
       const data = await response.json();
 
       setGame(data);
+      localStorage.setItem("algobid_game_id", data.game_id);
       setAuction(null);
       setResult(null);
       setFinalGame(null);
@@ -63,8 +148,9 @@ function App() {
   // ==========================================================
 
   const startAuction = async () => {
-    if (!game) return;
+    if (!game || auctionLoading) return;
 
+    setAuctionLoading(true);
     setError("");
 
     try {
@@ -87,6 +173,8 @@ function App() {
     } catch (err) {
       console.error(err);
       setError("Unable to start auction.");
+    } finally {
+      setAuctionLoading(false);
     }
   };
 
@@ -218,6 +306,8 @@ function App() {
 
       // Game completely finished
       if (data.game_complete) {
+        localStorage.setItem("algobid_has_played", "true");
+        localStorage.removeItem("algobid_game_id");
         setFinalGame(data);
         setGame((previous) => ({
           ...previous,
@@ -266,6 +356,7 @@ function App() {
   // ==========================================================
 
   const playAgain = () => {
+    localStorage.removeItem("algobid_game_id");
     setGame(null);
     setAuction(null);
     setResult(null);
@@ -275,10 +366,37 @@ function App() {
     setBidding(false);
     setFinalizing(false);
     setNextLoading(false);
+    setAuctionLoading(false);
+    setRecovering(false);
 
     setBidAmount(150);
     setError("");
   };
+
+  // ==========================================================
+  // INITIAL RECOVERY SCREEN
+  // ==========================================================
+
+  if (recovering) {
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-black text-white">
+        <Background />
+        <main className="relative z-10 min-h-screen flex items-center justify-center px-6">
+          <div className="text-center">
+            <p className="text-emerald-400 text-sm tracking-[0.4em]">
+              ALGOBID
+            </p>
+            <h1 className="text-3xl font-black mt-4">
+              Restoring your game...
+            </h1>
+            <p className="text-gray-500 mt-3">
+              Just a moment.
+            </p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   // ==========================================================
   // LANDING
@@ -303,10 +421,14 @@ function App() {
             <p className="mt-5 text-gray-300 text-lg">
               Don't just solve problems.
               <br />
-
               <span className="font-semibold text-white">
                 Bid for them.
               </span>
+            </p>
+
+            <p className="mt-4 text-gray-500 text-sm max-w-md mx-auto">
+              Start with 1,000 credits. Compete against three bots.
+              Win problems, earn points, and manage your budget.
             </p>
 
             <button
@@ -374,7 +496,7 @@ function App() {
             </h1>
 
             <p className="text-gray-400 mt-4">
-              Your auction is complete.
+              Your first AlgoBid run is complete. Ready for another round?
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10">
@@ -683,6 +805,7 @@ function App() {
 
                 <button
                   onClick={startAuction}
+                  disabled={auctionLoading}
                   className="
                     px-10 py-4
                     bg-white text-black
@@ -692,7 +815,9 @@ function App() {
                     transition-all
                   "
                 >
-                  ENTER AUCTION
+                  {auctionLoading
+                    ? "OPENING AUCTION..."
+                    : "ENTER AUCTION"}
                 </button>
 
               </div>
@@ -835,7 +960,13 @@ function App() {
                   Leader:{" "}
 
                   <span className="text-white font-semibold">
-                    {auction.current_leader || "No bids"}
+                    {auction.current_leader
+                      ? auction.current_leader === "player"
+                        ? "You"
+                        : game.players.find(
+                            (p) => p.id === auction.current_leader
+                          )?.name || auction.current_leader
+                      : "No bids"}
                   </span>
                 </p>
 
@@ -863,6 +994,10 @@ function App() {
 
                 </div>
               )}
+
+              <p className="mt-6 text-center text-gray-500 text-sm">
+                Each bid must be higher than the current bid. The highest bidder wins when you end the auction.
+              </p>
 
               {/* CONTROLS */}
 
@@ -897,7 +1032,7 @@ function App() {
 
                 <button
                   onClick={finalizeAuction}
-                  disabled={finalizing}
+                  disabled={finalizing || !auction.current_leader}
                   className="
                     px-8 py-4
                     border border-white/20

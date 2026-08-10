@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4
+from fastapi import Query
 
 
 # ============================================================
@@ -214,7 +215,8 @@ def health():
 # ============================================================
 
 @app.post("/api/game/start")
-def start_game():
+def start_game(first_time: bool = Query(True)):
+
 
     game_id = str(uuid4())
 
@@ -270,7 +272,9 @@ def start_game():
         "status": "lobby",
 
         # First-time guest experience
-        "first_game": True,
+        # The frontend marks a browser as having played after a completed game.
+        # This keeps the first-time guest experience friendly without a database.
+        "first_game": first_time,
 
         # History
         "round_history": [],
@@ -351,6 +355,12 @@ def place_bid(game_id: str, amount: int):
         return {
             "success": False,
             "error": "Auction is not active",
+        }
+
+    if amount <= 0:
+        return {
+            "success": False,
+            "error": "Bid must be greater than 0",
         }
 
     player = get_player(game, "player")
