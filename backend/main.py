@@ -1,51 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4
-from fastapi import Query
+import random
 
 
-# ============================================================
-# PROBLEMS
-# ============================================================
-
-PROBLEMS = [
-    {
-        "id": 1,
-        "title": "Two Sum",
-        "difficulty": "Easy",
-        "description": "Find two numbers in an array that add up to a given target.",
-        "base_price": 100,
-        "points": 1000,
-    },
-    {
-        "id": 2,
-        "title": "Valid Parentheses",
-        "difficulty": "Easy",
-        "description": "Determine whether a string of brackets is valid.",
-        "base_price": 150,
-        "points": 1000,
-    },
-    {
-        "id": 3,
-        "title": "Best Time to Buy and Sell Stock",
-        "difficulty": "Medium",
-        "description": "Find the maximum profit from buying and selling a stock.",
-        "base_price": 200,
-        "points": 1500,
-    },
-]
-
-
-# ============================================================
-# GAME STORAGE
-# ============================================================
-
-games = {}
-
-
-# ============================================================
+# ==========================================================
 # APP
-# ============================================================
+# ==========================================================
 
 app = FastAPI(title="AlgoBid v0.1")
 
@@ -62,95 +23,225 @@ app.add_middleware(
 )
 
 
-# ============================================================
-# BOT CONFIGURATION
-# ============================================================
+# ==========================================================
+# GAME CONSTANTS
+# ==========================================================
 
-BOT_CONFIG = [
+STARTING_CREDITS = 1000
+TOTAL_ROUNDS = 3
+BID_INCREMENT = 50
+
+
+# ==========================================================
+# PROBLEMS
+# ==========================================================
+
+PROBLEMS = [
     {
-        "id": "bot-alpha",
-        "max_bid": 250,
+        "id": 1,
+        "title": "Two Sum",
+        "difficulty": "Easy",
+        "description": "Find two numbers in an array that add up to a given target.",
+        "base_price": 100,
+        "points": 1000,
     },
     {
-        "id": "bot-beta",
-        "max_bid": 350,
+        "id": 2,
+        "title": "Valid Parentheses",
+        "difficulty": "Easy",
+        "description": "Determine whether a string of brackets is valid.",
+        "base_price": 100,
+        "points": 1000,
     },
     {
-        "id": "bot-gamma",
-        "max_bid": 200,
+        "id": 3,
+        "title": "Best Time to Buy and Sell Stock",
+        "difficulty": "Easy",
+        "description": "Find the maximum profit from buying and selling a stock.",
+        "base_price": 150,
+        "points": 1000,
+    },
+    {
+        "id": 4,
+        "title": "Contains Duplicate",
+        "difficulty": "Easy",
+        "description": "Determine whether an array contains any duplicate values.",
+        "base_price": 100,
+        "points": 1000,
+    },
+    {
+        "id": 5,
+        "title": "Valid Anagram",
+        "difficulty": "Easy",
+        "description": "Determine whether two strings are anagrams of each other.",
+        "base_price": 100,
+        "points": 1000,
+    },
+    {
+        "id": 6,
+        "title": "Binary Search",
+        "difficulty": "Easy",
+        "description": "Find the position of a target value in a sorted array.",
+        "base_price": 150,
+        "points": 1000,
+    },
+    {
+        "id": 7,
+        "title": "Reverse String",
+        "difficulty": "Easy",
+        "description": "Reverse a string in place.",
+        "base_price": 100,
+        "points": 1000,
+    },
+    {
+        "id": 8,
+        "title": "Palindrome Number",
+        "difficulty": "Easy",
+        "description": "Determine whether an integer reads the same forward and backward.",
+        "base_price": 100,
+        "points": 1000,
+    },
+    {
+        "id": 9,
+        "title": "Fizz Buzz",
+        "difficulty": "Easy",
+        "description": "Return the Fizz Buzz sequence for integers from 1 through n.",
+        "base_price": 100,
+        "points": 1000,
+    },
+    {
+        "id": 10,
+        "title": "Maximum Subarray",
+        "difficulty": "Easy",
+        "description": "Find the contiguous subarray with the largest sum.",
+        "base_price": 200,
+        "points": 1000,
+    },
+    {
+        "id": 11,
+        "title": "Climbing Stairs",
+        "difficulty": "Easy",
+        "description": "Find the number of distinct ways to climb n stairs.",
+        "base_price": 150,
+        "points": 1000,
+    },
+    {
+        "id": 12,
+        "title": "Move Zeroes",
+        "difficulty": "Easy",
+        "description": "Move all zeroes to the end of an array while preserving order.",
+        "base_price": 150,
+        "points": 1000,
+    },
+    {
+        "id": 13,
+        "title": "Merge Sorted Arrays",
+        "difficulty": "Easy",
+        "description": "Merge two sorted arrays into one sorted array.",
+        "base_price": 150,
+        "points": 1000,
+    },
+    {
+        "id": 14,
+        "title": "Single Number",
+        "difficulty": "Easy",
+        "description": "Find the element that appears only once when every other element appears twice.",
+        "base_price": 150,
+        "points": 1000,
+    },
+    {
+        "id": 15,
+        "title": "Majority Element",
+        "difficulty": "Easy",
+        "description": "Find the element that appears more than half the time in an array.",
+        "base_price": 150,
+        "points": 1000,
+    },
+    {
+        "id": 16,
+        "title": "Length of Last Word",
+        "difficulty": "Easy",
+        "description": "Find the length of the last word in a string.",
+        "base_price": 100,
+        "points": 1000,
+    },
+    {
+        "id": 17,
+        "title": "Remove Duplicates",
+        "difficulty": "Easy",
+        "description": "Remove duplicates from a sorted array in place.",
+        "base_price": 150,
+        "points": 1000,
+    },
+    {
+        "id": 18,
+        "title": "Intersection of Two Arrays",
+        "difficulty": "Easy",
+        "description": "Return the unique intersection of two integer arrays.",
+        "base_price": 150,
+        "points": 1000,
     },
 ]
 
 
-# ============================================================
-# BOT BIDDING
-# ============================================================
+# ==========================================================
+# PROBLEM SETS
+# ==========================================================
 
-def bot_bid(game):
-    """
-    Allows one bot to respond to the player's bid.
-
-    During the player's first game, bots intentionally
-    give the guest a realistic opening win.
-    """
-
-    # First-time guest protection.
-    # Bots do not counter the first auction.
-    if game["first_game"] and game["round"] == 1:
-        return None
-
-    current_bid = game["current_bid"]
-
-    eligible_bots = []
-
-    for bot_config in BOT_CONFIG:
-        bot = next(
-            (
-                p
-                for p in game["players"]
-                if p["id"] == bot_config["id"]
-            ),
-            None,
-        )
-
-        if not bot:
-            continue
-
-        next_bid = current_bid + 50
-
-        if (
-            next_bid <= bot_config["max_bid"]
-            and next_bid <= bot["credits"]
-        ):
-            eligible_bots.append(
-                {
-                    "bot": bot,
-                    "next_bid": next_bid,
-                }
-            )
-
-    if not eligible_bots:
-        return None
-
-    # Pick the first eligible bot for deterministic MVP behavior.
-    selected = eligible_bots[0]
-
-    bot = selected["bot"]
-    next_bid = selected["next_bid"]
-
-    game["current_bid"] = next_bid
-    game["current_leader"] = bot["id"]
-
-    return {
-        "id": bot["id"],
-        "name": bot["name"],
-        "bid": next_bid,
-    }
+PROBLEM_SETS = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9],
+    [10, 11, 12],
+    [13, 14, 15],
+    [16, 17, 18],
+]
 
 
-# ============================================================
+# ==========================================================
+# BOT CONFIGURATION
+# ==========================================================
+
+BOT_CONFIG = [
+    {
+        "id": "bot-arjun",
+        "name": "Arjun Sharma",
+        "style": "aggressive",
+        "max_bid": 500,
+    },
+    {
+        "id": "bot-rohan",
+        "name": "Rohan Patil",
+        "style": "balanced",
+        "max_bid": 400,
+    },
+    {
+        "id": "bot-aditya",
+        "name": "Aditya Kulkarni",
+        "style": "conservative",
+        "max_bid": 300,
+    },
+]
+
+
+# ==========================================================
+# IN-MEMORY GAME STORAGE
+# ==========================================================
+
+games = {}
+
+
+# ==========================================================
 # HELPERS
-# ============================================================
+# ==========================================================
+
+def get_problem(problem_id):
+    for problem in PROBLEMS:
+        if problem["id"] == problem_id:
+            return problem
+
+    return None
+
 
 def get_player(game, player_id):
     return next(
@@ -164,32 +255,98 @@ def get_player(game, player_id):
 
 
 def get_current_problem(game):
-    return PROBLEMS[game["current_problem_index"]]
+    return get_problem(
+        game["problem_set"][game["current_round"] - 1]
+    )
 
 
-def build_game_state(game):
+def public_game_state(game):
     return {
         "game_id": game["game_id"],
-        "round": game["round"],
-        "total_rounds": len(PROBLEMS),
-        "status": game["status"],
-        "first_game": game["first_game"],
-        "players": game["players"],
-        "current_problem_index": game["current_problem_index"],
-        "current_problem": (
-            get_current_problem(game)
-            if game["current_problem_index"] < len(PROBLEMS)
-            else None
-        ),
+        "round": game["current_round"],
+        "total_rounds": TOTAL_ROUNDS,
+        "problem_set": game["problem_set"],
+        "current_problem": get_current_problem(game),
         "current_bid": game["current_bid"],
         "current_leader": game["current_leader"],
+        "status": game["status"],
+        "players": game["players"],
         "round_history": game["round_history"],
+        "first_game": game["first_game"],
     }
 
 
-# ============================================================
+# ==========================================================
+# BOT BIDDING
+# ==========================================================
+
+def bot_bid(game):
+    """
+    Determines whether a bot responds to the current human bid.
+
+    M7 intentionally keeps this logic deterministic/simple.
+    M7 does NOT introduce artificial delays.
+    Frontend timing will be handled later.
+    """
+
+    current_bid = game["current_bid"]
+
+    eligible_bots = []
+
+    for config in BOT_CONFIG:
+        bot = get_player(game, config["id"])
+
+        if not bot:
+            continue
+
+        # Don't allow the current leader to bid against itself.
+        if game["current_leader"] == bot["id"]:
+            continue
+
+        next_bid = current_bid + BID_INCREMENT
+
+        # First-game advantage:
+        # bots are intentionally softer during Round 1.
+        max_bid = config["max_bid"]
+
+        if game["first_game"] and game["current_round"] == 1:
+            max_bid = max(0, max_bid - 100)
+
+        if next_bid <= max_bid and next_bid <= bot["credits"]:
+            eligible_bots.append(
+                {
+                    "bot": bot,
+                    "next_bid": next_bid,
+                    "style": config["style"],
+                }
+            )
+
+    if not eligible_bots:
+        return None
+
+    # Add slight strategic variation.
+    if len(eligible_bots) > 1:
+        selected = random.choice(eligible_bots)
+    else:
+        selected = eligible_bots[0]
+
+    bot = selected["bot"]
+    next_bid = selected["next_bid"]
+
+    game["current_bid"] = next_bid
+    game["current_leader"] = bot["id"]
+
+    return {
+        "id": bot["id"],
+        "name": bot["name"],
+        "bid": next_bid,
+        "style": selected["style"],
+    }
+
+
+# ==========================================================
 # ROOT
-# ============================================================
+# ==========================================================
 
 @app.get("/")
 def root():
@@ -198,9 +355,9 @@ def root():
     }
 
 
-# ============================================================
+# ==========================================================
 # HEALTH
-# ============================================================
+# ==========================================================
 
 @app.get("/api/health")
 def health():
@@ -209,88 +366,80 @@ def health():
     }
 
 
-# ============================================================
-# M5-A
+# ==========================================================
 # START GAME
-# ============================================================
+# ==========================================================
 
 @app.post("/api/game/start")
-def start_game(first_time: bool = Query(True)):
-
-
+def start_game():
     game_id = str(uuid4())
+
+    # Select one of six predefined 3-problem sets.
+    selected_set = random.choice(PROBLEM_SETS)
 
     players = [
         {
             "id": "player",
             "name": "You",
             "type": "human",
-            "credits": 1000,
+            "credits": STARTING_CREDITS,
             "score": 0,
             "problems_won": [],
-        },
-        {
-            "id": "bot-alpha",
-            "name": "Bot Alpha",
-            "type": "bot",
-            "credits": 1000,
-            "score": 0,
-            "problems_won": [],
-        },
-        {
-            "id": "bot-beta",
-            "name": "Bot Beta",
-            "type": "bot",
-            "credits": 1000,
-            "score": 0,
-            "problems_won": [],
-        },
-        {
-            "id": "bot-gamma",
-            "name": "Bot Gamma",
-            "type": "bot",
-            "credits": 1000,
-            "score": 0,
-            "problems_won": [],
-        },
+        }
     ]
+
+    for config in BOT_CONFIG:
+        players.append(
+            {
+                "id": config["id"],
+                "name": config["name"],
+                "type": "bot",
+                "credits": STARTING_CREDITS,
+                "score": 0,
+                "problems_won": [],
+            }
+        )
+
+    first_game = True
 
     games[game_id] = {
         "game_id": game_id,
         "players": players,
 
-        # M5 state
-        "round": 1,
-        "total_rounds": len(PROBLEMS),
-        "current_problem_index": 0,
+        # Exactly 3 rounds.
+        "current_round": 1,
+        "total_rounds": TOTAL_ROUNDS,
 
-        # Auction state
-        "current_bid": PROBLEMS[0]["base_price"],
+        # Selected 3-problem set.
+        "problem_set": selected_set,
+
+        # Current auction state.
+        "current_bid": get_problem(selected_set[0])["base_price"],
         "current_leader": None,
 
-        # Game state
+        # Game state.
         "status": "lobby",
 
-        # First-time guest experience
-        # The frontend marks a browser as having played after a completed game.
-        # This keeps the first-time guest experience friendly without a database.
-        "first_game": first_time,
+        # Acquisition state.
+        "acquired_problem": None,
+        "acquired_by": None,
 
-        # History
+        # Round history.
         "round_history": [],
+
+        # First-game onboarding advantage.
+        "first_game": first_game,
     }
 
-    return build_game_state(games[game_id])
+    return public_game_state(games[game_id])
 
 
-# ============================================================
-# M5-B
+# ==========================================================
 # START AUCTION
-# ============================================================
+# ==========================================================
 
 @app.post("/api/game/{game_id}/auction/start")
 def start_auction(game_id: str):
-
     game = games.get(game_id)
 
     if not game:
@@ -299,50 +448,46 @@ def start_auction(game_id: str):
             "error": "Game not found",
         }
 
-    if game["status"] == "completed":
+    if game["status"] != "lobby":
         return {
             "success": False,
-            "error": "Game is already completed",
-        }
-
-    if game["status"] == "auction":
-        return {
-            "success": False,
-            "error": "Auction is already active",
-        }
-
-    if game["current_problem_index"] >= len(PROBLEMS):
-        return {
-            "success": False,
-            "error": "No more problems available",
+            "error": "Auction cannot be started right now",
         }
 
     problem = get_current_problem(game)
+
+    if not problem:
+        return {
+            "success": False,
+            "error": "Problem not found",
+        }
 
     game["status"] = "auction"
     game["current_bid"] = problem["base_price"]
     game["current_leader"] = None
 
+    game["acquired_problem"] = None
+    game["acquired_by"] = None
+
     return {
         "success": True,
         "game_id": game_id,
-        "round": game["round"],
-        "total_rounds": game["total_rounds"],
+        "round": game["current_round"],
+        "total_rounds": TOTAL_ROUNDS,
         "problem": problem,
         "current_bid": game["current_bid"],
-        "current_leader": game["current_leader"],
+        "current_leader": None,
         "status": game["status"],
+        "players": game["players"],
     }
 
 
-# ============================================================
-# M5-B
+# ==========================================================
 # PLACE BID
-# ============================================================
+# ==========================================================
 
 @app.post("/api/game/{game_id}/bid")
 def place_bid(game_id: str, amount: int):
-
     game = games.get(game_id)
 
     if not game:
@@ -355,12 +500,6 @@ def place_bid(game_id: str, amount: int):
         return {
             "success": False,
             "error": "Auction is not active",
-        }
-
-    if amount <= 0:
-        return {
-            "success": False,
-            "error": "Bid must be greater than 0",
         }
 
     player = get_player(game, "player")
@@ -386,16 +525,17 @@ def place_bid(game_id: str, amount: int):
             "error": "Insufficient credits",
         }
 
-    # Human bid
+    # Human becomes current leader.
     game["current_bid"] = amount
     game["current_leader"] = "player"
 
-    # Bot response
+    # Give bots a chance to respond.
     bot_result = bot_bid(game)
 
     return {
         "success": True,
         "game_id": game_id,
+        "round": game["current_round"],
         "current_bid": game["current_bid"],
         "current_leader": game["current_leader"],
         "player_credits": player["credits"],
@@ -404,14 +544,12 @@ def place_bid(game_id: str, amount: int):
     }
 
 
-# ============================================================
-# M5-A / M5-B
-# FINALIZE CURRENT AUCTION
-# ============================================================
+# ==========================================================
+# FINALIZE AUCTION
+# ==========================================================
 
 @app.post("/api/game/{game_id}/auction/finalize")
 def finalize_auction(game_id: str):
-
     game = games.get(game_id)
 
     if not game:
@@ -434,7 +572,7 @@ def finalize_auction(game_id: str):
 
     winner = get_player(
         game,
-        game["current_leader"],
+        game["current_leader"]
     )
 
     if not winner:
@@ -444,7 +582,6 @@ def finalize_auction(game_id: str):
         }
 
     problem = get_current_problem(game)
-
     winning_bid = game["current_bid"]
 
     if winning_bid > winner["credits"]:
@@ -453,74 +590,73 @@ def finalize_auction(game_id: str):
             "error": "Winner does not have enough credits",
         }
 
-    # --------------------------------------------------------
-    # Deduct credits
-    # --------------------------------------------------------
+    # ------------------------------------------------------
+    # IMPORTANT:
+    # Winning the auction does NOT award points.
+    # The player only acquires the problem.
+    # ------------------------------------------------------
 
     winner["credits"] -= winning_bid
 
-    # --------------------------------------------------------
-    # Award score
-    # --------------------------------------------------------
+    acquired_problem = {
+        **problem,
+        "winning_bid": winning_bid,
+        "winner_id": winner["id"],
+        "winner_name": winner["name"],
+        "solved": False,
+        "points_awarded": 0,
+        "status": "acquired",
+    }
 
-    winner["score"] += problem["points"]
+    winner["problems_won"].append(
+        problem["id"]
+    )
 
-    # --------------------------------------------------------
-    # Record problem
-    # --------------------------------------------------------
+    game["acquired_problem"] = acquired_problem
+    game["acquired_by"] = winner["id"]
 
-    winner["problems_won"].append(problem["id"])
-
-    # --------------------------------------------------------
-    # Record round history
-    # --------------------------------------------------------
+    game["status"] = "problem_acquired"
 
     game["round_history"].append(
         {
-            "round": game["round"],
-            "problem": problem,
-            "winner": {
-                "id": winner["id"],
-                "name": winner["name"],
-                "type": winner["type"],
-            },
+            "round": game["current_round"],
+            "problem_id": problem["id"],
+            "problem_title": problem["title"],
+            "winner_id": winner["id"],
+            "winner_name": winner["name"],
             "winning_bid": winning_bid,
-            "points": problem["points"],
+            "points_awarded": 0,
+            "status": "acquired",
         }
     )
-
-    # --------------------------------------------------------
-    # Current round complete
-    # --------------------------------------------------------
-
-    game["status"] = "round_complete"
 
     return {
         "success": True,
         "game_id": game_id,
-        "round": game["round"],
-        "problem": problem,
+        "round": game["current_round"],
         "winner": {
             "id": winner["id"],
             "name": winner["name"],
             "type": winner["type"],
         },
+        "problem": problem,
         "winning_bid": winning_bid,
         "remaining_credits": winner["credits"],
-        "score": winner["score"],
-        "problems_won": winner["problems_won"],
+
+        # CRITICAL M7 RULE
+        "points_awarded": 0,
+
+        "problem_status": "acquired",
         "status": game["status"],
     }
 
 
-# ============================================================
-# M5-B
-# NEXT ROUND
-# ============================================================
+# ==========================================================
+# CURRENT GAME STATE
+# ==========================================================
 
-@app.post("/api/game/{game_id}/next-round")
-def next_round(game_id: str):
-
+@app.get("/api/game/{game_id}")
+def get_game(game_id: str):
     game = games.get(game_id)
 
     if not game:
@@ -529,22 +665,45 @@ def next_round(game_id: str):
             "error": "Game not found",
         }
 
-    if game["status"] != "round_complete":
+    return {
+        "success": True,
+        **public_game_state(game),
+        "acquired_problem": game["acquired_problem"],
+        "acquired_by": game["acquired_by"],
+    }
+
+
+# ==========================================================
+# NEXT ROUND
+# ==========================================================
+
+@app.post("/api/game/{game_id}/next-round")
+def next_round(game_id: str):
+    game = games.get(game_id)
+
+    if not game:
         return {
             "success": False,
-            "error": "Current round is not complete",
+            "error": "Game not found",
         }
 
-    next_problem_index = (
-        game["current_problem_index"] + 1
-    )
+    if game["status"] != "problem_acquired":
+        return {
+            "success": False,
+            "error": (
+                "Current round has not been completed "
+                "through the acquisition phase"
+            ),
+        }
 
-    # --------------------------------------------------------
-    # No more problems = complete game
-    # --------------------------------------------------------
+    # ------------------------------------------------------
+    # M7 only reaches this point after acquisition.
+    #
+    # M8/M9 will insert the solving/judging phase here.
+    # For M7 testing, we allow transition to next round.
+    # ------------------------------------------------------
 
-    if next_problem_index >= len(PROBLEMS):
-
+    if game["current_round"] >= TOTAL_ROUNDS:
         game["status"] = "completed"
 
         player = get_player(game, "player")
@@ -553,55 +712,35 @@ def next_round(game_id: str):
             "success": True,
             "game_complete": True,
             "game_id": game_id,
-            "status": game["status"],
+            "round": game["current_round"],
             "player": player,
+            "players": game["players"],
             "round_history": game["round_history"],
+            "status": game["status"],
         }
 
-    # --------------------------------------------------------
-    # Move to next round
-    # --------------------------------------------------------
+    game["current_round"] += 1
 
-    game["current_problem_index"] = next_problem_index
-    game["round"] += 1
+    problem = get_current_problem(game)
 
-    next_problem = get_current_problem(game)
-
-    game["current_bid"] = next_problem["base_price"]
+    game["current_bid"] = problem["base_price"]
     game["current_leader"] = None
+
+    game["acquired_problem"] = None
+    game["acquired_by"] = None
+
     game["status"] = "lobby"
 
     return {
         "success": True,
         "game_complete": False,
         "game_id": game_id,
-        "round": game["round"],
-        "total_rounds": game["total_rounds"],
-        "problem": next_problem,
-        "current_bid": game["current_bid"],
-        "status": game["status"],
+        "round": game["current_round"],
+        "total_rounds": TOTAL_ROUNDS,
+        "problem": problem,
+        "current_bid": problem["base_price"],
+        "current_leader": None,
         "players": game["players"],
         "round_history": game["round_history"],
-    }
-
-
-# ============================================================
-# M5-C
-# CURRENT GAME STATE
-# ============================================================
-
-@app.get("/api/game/{game_id}")
-def get_game(game_id: str):
-
-    game = games.get(game_id)
-
-    if not game:
-        return {
-            "success": False,
-            "error": "Game not found",
-        }
-
-    return {
-        "success": True,
-        **build_game_state(game),
+        "status": game["status"],
     }
