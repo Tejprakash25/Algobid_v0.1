@@ -3,6 +3,11 @@ import Background from "./Background";
 
 const API_URL = "http://127.0.0.1:8000";
 
+const BOT_IDS = ["bot-arjun", "bot-rohan", "bot-aditya"];
+
+const sleep = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 function App() {
   const [game, setGame] = useState(null);
   const [auction, setAuction] = useState(null);
@@ -10,93 +15,17 @@ function App() {
   const [finalGame, setFinalGame] = useState(null);
 
   const [loading, setLoading] = useState(false);
+  const [auctionLoading, setAuctionLoading] = useState(false);
   const [bidding, setBidding] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [nextLoading, setNextLoading] = useState(false);
-  const [auctionLoading, setAuctionLoading] = useState(false);
-  const [recovering, setRecovering] = useState(true);
 
   const [bidAmount, setBidAmount] = useState(150);
+
+  const [auctionMessage, setAuctionMessage] = useState("");
+  const [thinkingPlayer, setThinkingPlayer] = useState(null);
+
   const [error, setError] = useState("");
-
-  // ==========================================================
-  // RECOVER ACTIVE GAME AFTER REFRESH
-  // ==========================================================
-
-  useEffect(() => {
-    const recoverGame = async () => {
-      const savedGameId = localStorage.getItem("algobid_game_id");
-
-      if (!savedGameId) {
-        setRecovering(false);
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          `${API_URL}/api/game/${savedGameId}`
-        );
-
-        if (!response.ok) throw new Error("Game recovery failed");
-
-        const data = await response.json();
-
-        if (!data.success) throw new Error(data.error);
-
-        setGame(data);
-
-        if (data.status === "completed") {
-          setFinalGame({
-            success: true,
-            game_complete: true,
-            game_id: data.game_id,
-            status: data.status,
-            player: data.players.find((p) => p.id === "player"),
-            round_history: data.round_history,
-          });
-        } else if (data.status === "round_complete" && data.round_history?.length) {
-          const lastRound =
-            data.round_history[data.round_history.length - 1];
-
-          const winner = data.players.find(
-            (p) => p.id === lastRound.winner.id
-          );
-
-          setResult({
-            success: true,
-            game_id: data.game_id,
-            round: lastRound.round,
-            problem: lastRound.problem,
-            winner: lastRound.winner,
-            winning_bid: lastRound.winning_bid,
-            remaining_credits: winner?.credits ?? 0,
-            score: winner?.score ?? 0,
-            problems_won: winner?.problems_won ?? [],
-            status: data.status,
-          });
-        } else if (data.status === "auction") {
-          setAuction({
-            success: true,
-            game_id: data.game_id,
-            round: data.round,
-            total_rounds: data.total_rounds,
-            problem: data.current_problem,
-            current_bid: data.current_bid,
-            current_leader: data.current_leader,
-            status: data.status,
-          });
-          setBidAmount(data.current_bid + 50);
-        }
-      } catch (err) {
-        console.warn("Could not recover game:", err);
-        localStorage.removeItem("algobid_game_id");
-      } finally {
-        setRecovering(false);
-      }
-    };
-
-    recoverGame();
-  }, []);
 
   // ==========================================================
   // START GAME
@@ -109,11 +38,8 @@ function App() {
     setError("");
 
     try {
-      const firstTime =
-        localStorage.getItem("algobid_has_played") !== "true";
-
       const response = await fetch(
-        `${API_URL}/api/game/start?first_time=${firstTime}`,
+        `${API_URL}/api/game/start`,
         {
           method: "POST",
           headers: {
@@ -129,10 +55,11 @@ function App() {
       const data = await response.json();
 
       setGame(data);
-      localStorage.setItem("algobid_game_id", data.game_id);
       setAuction(null);
       setResult(null);
       setFinalGame(null);
+      setAuctionMessage("");
+      setThinkingPlayer(null);
     } catch (err) {
       console.error(err);
       setError(
@@ -152,6 +79,8 @@ function App() {
 
     setAuctionLoading(true);
     setError("");
+    setAuctionMessage("");
+    setThinkingPlayer(null);
 
     try {
       const response = await fetch(
@@ -170,6 +99,10 @@ function App() {
 
       setAuction(data);
       setBidAmount(data.current_bid + 50);
+
+      setAuctionMessage(
+        "Auction is open. Place your bid."
+      );
     } catch (err) {
       console.error(err);
       setError("Unable to start auction.");
@@ -187,6 +120,8 @@ function App() {
 
     setBidding(true);
     setError("");
+    setAuctionMessage("Your bid is being processed...");
+    setThinkingPlayer(null);
 
     try {
       const response = await fetch(
@@ -200,20 +135,70 @@ function App() {
 
       if (!data.success) {
         setError(data.error);
+        setAuctionMessage("Your turn.");
         return;
       }
+
+      // Immediately show player's bid.
+      setAuction((previous) => ({
+        ...previous,
+        current_bid: bidAmount,
+        current_leader: "player",
+        bot_response: null,
+      }));
+
+      setAuctionMessage("Your bid is leading.");
+
+      // ------------------------------------------------------
+      // No bot response.
+      // Player remains leader.
+      // ------------------------------------------------------
+
+      if (!data.bot_response) {
+        await sleep(900);
+
+        setAuctionMessage(
+          "No opponent raised the bid."
+        );
+
+        return;
+      }
+
+      // ------------------------------------------------------
+      // Bot is now "thinking".
+      // ------------------------------------------------------
+
+      const bot = data.bot_response;
+
+      setThinkingPlayer(bot.name);
+      setAuctionMessage(
+        `${bot.name} is thinking...`
+      );
+
+      await sleep(1200);
+
+      // ------------------------------------------------------
+      // Reveal bot bid.
+      // ------------------------------------------------------
+
+      setThinkingPlayer(null);
 
       setAuction((previous) => ({
         ...previous,
         current_bid: data.current_bid,
         current_leader: data.current_leader,
-        bot_response: data.bot_response,
+        bot_response: bot,
       }));
+
+      setAuctionMessage(
+        `${bot.name} bid ${bot.bid}. Your turn.`
+      );
 
       setBidAmount(data.current_bid + 50);
     } catch (err) {
       console.error(err);
       setError("Bid failed.");
+      setAuctionMessage("Your turn.");
     } finally {
       setBidding(false);
     }
@@ -246,7 +231,7 @@ function App() {
 
       setResult(data);
 
-      // Update local player state immediately
+      // Update game with new credits.
       setGame((previous) => {
         if (!previous) return previous;
 
@@ -256,8 +241,10 @@ function App() {
               return {
                 ...player,
                 credits: data.remaining_credits,
-                score: data.score,
-                problems_won: data.problems_won,
+                problems_won: [
+                  ...(player.problems_won || []),
+                  data.problem.id,
+                ],
               };
             }
 
@@ -268,9 +255,12 @@ function App() {
         return {
           ...previous,
           players: updatedPlayers,
-          status: "round_complete",
+          status: "problem_acquired",
         };
       });
+
+      setAuctionMessage("");
+      setThinkingPlayer(null);
     } catch (err) {
       console.error(err);
       setError("Unable to finalize auction.");
@@ -304,34 +294,39 @@ function App() {
         return;
       }
 
-      // Game completely finished
+      // Game complete.
       if (data.game_complete) {
-        localStorage.setItem("algobid_has_played", "true");
-        localStorage.removeItem("algobid_game_id");
-        setFinalGame(data);
-        setGame((previous) => ({
-          ...previous,
-          status: "completed",
-          players: previous.players.map(
-            (player) =>
-              player.id === "player"
-                ? data.player
-                : player
-          ),
-        }));
+  console.log("========== GAME COMPLETE PAYLOAD ==========");
+  console.log("FULL DATA:", data);
+  console.log("PLAYERS:", data.players);
+  console.log("ROUND HISTORY:", data.round_history);
+  console.log(
+    "ROUND HISTORY JSON:",
+    JSON.stringify(data.round_history, null, 2)
+  );
+  console.log("============================================");
 
-        setAuction(null);
-        setResult(null);
+  setFinalGame(data);
 
-        return;
-      }
+  setGame((previous) => ({
+    ...previous,
+    status: "completed",
+    players: data.players,
+    round_history: data.round_history,
+  }));
 
-      // Next round
+  setAuction(null);
+  setResult(null);
+
+  return;
+}
+
+      // Next round.
       setGame((previous) => ({
         ...previous,
         round: data.round,
-        current_problem_index:
-          data.round - 1,
+        total_rounds: data.total_rounds,
+        problem_set: previous.problem_set,
         current_problem: data.problem,
         current_bid: data.current_bid,
         current_leader: null,
@@ -342,6 +337,8 @@ function App() {
 
       setAuction(null);
       setResult(null);
+      setAuctionMessage("");
+      setThinkingPlayer(null);
       setBidAmount(data.current_bid + 50);
     } catch (err) {
       console.error(err);
@@ -356,47 +353,31 @@ function App() {
   // ==========================================================
 
   const playAgain = () => {
-    localStorage.removeItem("algobid_game_id");
     setGame(null);
     setAuction(null);
     setResult(null);
     setFinalGame(null);
 
     setLoading(false);
+    setAuctionLoading(false);
     setBidding(false);
     setFinalizing(false);
     setNextLoading(false);
-    setAuctionLoading(false);
-    setRecovering(false);
 
     setBidAmount(150);
+    setAuctionMessage("");
+    setThinkingPlayer(null);
     setError("");
   };
 
   // ==========================================================
-  // INITIAL RECOVERY SCREEN
+  // FIND PLAYER
   // ==========================================================
 
-  if (recovering) {
-    return (
-      <div className="relative min-h-screen overflow-hidden bg-black text-white">
-        <Background />
-        <main className="relative z-10 min-h-screen flex items-center justify-center px-6">
-          <div className="text-center">
-            <p className="text-emerald-400 text-sm tracking-[0.4em]">
-              ALGOBID
-            </p>
-            <h1 className="text-3xl font-black mt-4">
-              Restoring your game...
-            </h1>
-            <p className="text-gray-500 mt-3">
-              Just a moment.
-            </p>
-          </div>
-        </main>
-      </div>
+  const player =
+    game?.players?.find(
+      (p) => p.id === "player"
     );
-  }
 
   // ==========================================================
   // LANDING
@@ -421,14 +402,10 @@ function App() {
             <p className="mt-5 text-gray-300 text-lg">
               Don't just solve problems.
               <br />
+
               <span className="font-semibold text-white">
                 Bid for them.
               </span>
-            </p>
-
-            <p className="mt-4 text-gray-500 text-sm max-w-md mx-auto">
-              Start with 1,000 credits. Compete against three bots.
-              Win problems, earn points, and manage your budget.
             </p>
 
             <button
@@ -463,105 +440,379 @@ function App() {
     );
   }
 
-  // ==========================================================
-  // GAME COMPLETE
-  // ==========================================================
+// ==========================================================
+// GAME COMPLETE — M7-B
+// ==========================================================
 
-  if (finalGame) {
-    const player = finalGame.player;
+if (finalGame) {
+  const players = finalGame.players || [];
+  const roundHistory = finalGame.round_history || [];
 
-    return (
-      <div className="relative min-h-screen overflow-hidden bg-black text-white">
-        <Background />
+  const getPlayerAcquisitions = (playerId) => {
+    return roundHistory.filter(
+      (round) => round.winner_id === playerId
+    );
+  };
 
-        <main className="relative z-10 min-h-screen flex items-center justify-center px-6 py-10">
+  const startCoding = () => {
+    // M7-D / coding phase will be connected here.
+    console.log("START CODING");
+  };
 
-          <section className="
-            w-full
-            max-w-2xl
-            bg-black/70
-            backdrop-blur-xl
-            border border-emerald-400/30
-            rounded-3xl
-            p-8 sm:p-12
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-black text-white">
+
+      <Background />
+
+      <main className="
+        relative
+        z-10
+        min-h-screen
+        flex
+        items-center
+        justify-center
+        px-4
+        py-10
+      ">
+
+        <section className="
+          w-full
+          max-w-5xl
+          bg-black/70
+          backdrop-blur-xl
+          border
+          border-emerald-400/20
+          rounded-3xl
+          p-6
+          sm:p-8
+          lg:p-10
+        ">
+
+          {/* HEADER */}
+
+          <div className="text-center">
+
+            <div className="
+              text-emerald-400
+              text-xs
+              sm:text-sm
+              font-bold
+              tracking-[0.35em]
+            ">
+              GAME COMPLETE
+            </div>
+
+            <h1 className="
+              text-3xl
+              sm:text-5xl
+              font-black
+              mt-3
+            ">
+              AUCTION RESULTS
+            </h1>
+
+            <p className="
+              text-gray-400
+              mt-3
+            ">
+              Every problem has found its owner.
+            </p>
+
+          </div>
+
+
+          {/* PLAYER RESULTS */}
+
+          <div className="mt-8 space-y-4">
+
+            {players.map((player) => {
+
+              const acquisitions =
+                getPlayerAcquisitions(player.id);
+
+              return (
+                <div
+                  key={player.id}
+                  className="
+                    rounded-2xl
+                    border
+                    border-white/10
+                    bg-white/[0.03]
+                    p-5
+                    transition-all
+                    duration-300
+                    hover:border-emerald-400/30
+                  "
+                >
+
+                  <div className="
+                    flex
+                    flex-col
+                    lg:flex-row
+                    lg:items-center
+                    gap-5
+                  ">
+
+                    {/* PLAYER */}
+
+                    <div className="lg:w-56 shrink-0">
+
+                      <div className="
+                        flex
+                        items-center
+                        gap-3
+                      ">
+
+                        <div className="
+                          w-11
+                          h-11
+                          rounded-full
+                          flex
+                          items-center
+                          justify-center
+                          bg-white/[0.05]
+                          border
+                          border-white/10
+                          text-xl
+                        ">
+                          {player.id === "player"
+                            ? "👤"
+                            : "🎮"}
+                        </div>
+
+                        <div>
+
+                          <h3 className="
+                            text-lg
+                            font-bold
+                          ">
+                            {player.name}
+                          </h3>
+
+                          <p className="
+                            text-[10px]
+                            tracking-[0.2em]
+                            text-gray-500
+                            mt-1
+                          ">
+                            {player.id === "player"
+                              ? "YOU"
+                              : "OPPONENT"}
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                    </div>
+
+
+                    {/* ACQUIRED PROBLEM */}
+
+                    <div className="flex-1 min-w-0">
+
+                      <p className="
+                        text-[10px]
+                        tracking-[0.2em]
+                        text-gray-500
+                        mb-2
+                      ">
+                        PROBLEM ACQUIRED
+                      </p>
+
+                      {acquisitions.length === 0 ? (
+
+                        <div className="
+                          rounded-xl
+                          border
+                          border-white/5
+                          bg-black/20
+                          px-4
+                          py-3
+                          text-sm
+                          text-gray-600
+                        ">
+                          No problem acquired
+                        </div>
+
+                      ) : (
+
+                        <div className="space-y-2">
+
+                          {acquisitions.map((round) => (
+
+                            <div
+                              key={round.round}
+                              className="
+                                rounded-xl
+                                border
+                                border-emerald-400/20
+                                bg-emerald-400/[0.05]
+                                px-4
+                                py-3
+                              "
+                            >
+
+                              <div className="
+                                flex
+                                flex-col
+                                sm:flex-row
+                                sm:items-center
+                                sm:justify-between
+                                gap-2
+                              ">
+
+                                <div>
+
+                                  <div className="
+                                    font-bold
+                                    text-white
+                                  ">
+                                    {round.problem_title}
+                                  </div>
+
+                                  <div className="
+                                    text-xs
+                                    text-gray-500
+                                    mt-1
+                                  ">
+                                    Round {round.round}
+                                  </div>
+
+                                </div>
+
+                                <div className="
+                                  text-emerald-400
+                                  font-bold
+                                  text-sm
+                                ">
+                                  WON FOR 💰 {round.winning_bid}
+                                </div>
+
+                              </div>
+
+                            </div>
+
+                          ))}
+
+                        </div>
+
+                      )}
+
+                    </div>
+
+
+                    {/* CREDITS */}
+
+                    <div className="
+                      lg:w-36
+                      shrink-0
+                      lg:text-right
+                    ">
+
+                      <p className="
+                        text-[10px]
+                        tracking-[0.2em]
+                        text-gray-500
+                      ">
+                        CREDITS LEFT
+                      </p>
+
+                      <p className="
+                        text-2xl
+                        font-black
+                        text-emerald-400
+                        mt-1
+                      ">
+                        💰 {player.credits}
+                      </p>
+
+                      <p className="
+                        text-[10px]
+                        text-gray-600
+                        mt-1
+                      ">
+                        of 1000
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              );
+
+            })}
+
+          </div>
+
+
+          {/* MESSAGE */}
+
+          <div className="
+            mt-8
+            rounded-2xl
+            border
+            border-emerald-400/10
+            bg-emerald-400/[0.04]
+            px-6
+            py-5
             text-center
           ">
 
-            <p className="text-emerald-400 text-sm tracking-[0.4em]">
-              GAME COMPLETE
+            <p className="text-gray-300">
+              The auction is over.
             </p>
 
-            <h1 className="text-5xl sm:text-6xl font-black mt-5">
-              🏆 ALGOBID
-            </h1>
-
-            <p className="text-gray-400 mt-4">
-              Your first AlgoBid run is complete. Ready for another round?
+            <p className="
+              text-emerald-400
+              font-semibold
+              mt-1
+            ">
+              Now prove you deserved the problem.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10">
+          </div>
 
-              <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
-                <p className="text-gray-500 text-xs">
-                  SCORE
-                </p>
 
-                <p className="text-3xl font-black text-emerald-400 mt-2">
-                  {player.score}
-                </p>
-              </div>
+          {/* START CODING */}
 
-              <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
-                <p className="text-gray-500 text-xs">
-                  CREDITS
-                </p>
-
-                <p className="text-3xl font-black mt-2">
-                  💰 {player.credits}
-                </p>
-              </div>
-
-              <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
-                <p className="text-gray-500 text-xs">
-                  PROBLEMS WON
-                </p>
-
-                <p className="text-3xl font-black mt-2">
-                  {player.problems_won.length}
-                </p>
-              </div>
-
-            </div>
+          <div className="
+            flex
+            justify-center
+            mt-7
+          ">
 
             <button
-              onClick={playAgain}
+              onClick={startCoding}
               className="
-                mt-10
-                px-9 py-4
-                bg-white text-black
-                font-bold rounded-xl
+                px-10
+                py-4
+                rounded-xl
+                bg-white
+                text-black
+                font-black
+                tracking-wide
+                transition-all
+                duration-300
                 hover:bg-emerald-400
                 hover:scale-105
-                transition-all
+                active:scale-95
               "
             >
-              PLAY AGAIN
+              START CODING →
             </button>
 
-          </section>
+          </div>
 
-        </main>
-      </div>
-    );
-  }
+        </section>
 
-  // ==========================================================
-  // MAIN GAME
-  // ==========================================================
+      </main>
 
-  const player = game.players.find(
-    (p) => p.id === "player"
+    </div>
   );
+}
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-black text-white">
@@ -569,7 +820,7 @@ function App() {
 
       <main className="relative z-10 min-h-screen px-6 py-10">
 
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto">
 
           {/* HEADER */}
 
@@ -581,7 +832,7 @@ function App() {
             gap-5
             items-start
             sm:items-center
-            mb-10
+            mb-8
           ">
 
             <div>
@@ -594,13 +845,11 @@ function App() {
                 {auction
                   ? "Live Auction"
                   : result
-                    ? "Round Complete"
-                    : "Auction Lobby"}
+                    ? "Problem Acquired"
+                    : "Game Lobby"}
               </h1>
 
             </div>
-
-            {/* PLAYER STATS */}
 
             <div className="flex gap-3">
 
@@ -625,7 +874,7 @@ function App() {
               <div className="
                 bg-black/50
                 backdrop-blur-xl
-                border border-white/10
+                border border-emerald-400/20
                 rounded-xl
                 px-5 py-3
               ">
@@ -634,7 +883,7 @@ function App() {
                   CREDITS
                 </p>
 
-                <p className="text-xl font-bold">
+                <p className="text-xl font-bold text-emerald-400">
                   💰 {player?.credits ?? 0}
                 </p>
 
@@ -644,7 +893,7 @@ function App() {
 
           </header>
 
-          {/* ROUND INDICATOR */}
+          {/* ROUND */}
 
           <div className="flex justify-center mb-8">
 
@@ -657,6 +906,7 @@ function App() {
             ">
 
               ROUND{" "}
+
               <span className="text-emerald-400 font-bold">
                 {game.round}
               </span>
@@ -690,6 +940,7 @@ function App() {
           ================================================== */}
 
           {!auction && !result && (
+
             <section className="
               bg-black/50
               backdrop-blur-xl
@@ -700,27 +951,28 @@ function App() {
 
               <div className="
                 flex
-                flex-col
-                sm:flex-row
                 justify-between
-                gap-4
+                items-center
                 mb-7
               ">
 
                 <div>
 
-                  <h2 className="text-xl font-bold">
+                  <p className="text-gray-500 text-xs tracking-wider">
+                    GAME ROOM
+                  </p>
+
+                  <h2 className="text-2xl font-bold mt-1">
                     Round {game.round}
                   </h2>
 
-                  <p className="text-gray-500 text-sm mt-1">
-                    Game ID:{" "}
-                    {game.game_id.slice(0, 8)}
-                  </p>
-
                 </div>
 
-                <span className="text-emerald-400 text-sm">
+                <span className="
+                  text-emerald-400
+                  text-sm
+                  font-semibold
+                ">
                   ● READY
                 </span>
 
@@ -735,47 +987,71 @@ function App() {
                 lg:grid-cols-4
               ">
 
-                {game.players.map((player) => (
-                  <div
-                    key={player.id}
-                    className="
-                      bg-white/[0.03]
-                      border border-white/10
-                      rounded-xl
-                      p-5
-                    "
-                  >
+                {game.players.map((roomPlayer) => {
 
-                    <div className="text-2xl mb-3">
-                      {player.type === "human"
-                        ? "👤"
-                        : "🤖"}
+                  const isYou =
+                    roomPlayer.id === "player";
+
+                  return (
+                    <div
+                      key={roomPlayer.id}
+                      className={`
+                        relative
+                        bg-white/[0.03]
+                        border
+                        rounded-xl
+                        p-5
+                        transition-all
+                        ${
+                          isYou
+                            ? "border-emerald-400/40 bg-emerald-400/[0.04]"
+                            : "border-white/10"
+                        }
+                      `}
+                    >
+
+                      {isYou && (
+                        <span className="
+                          absolute
+                          top-3
+                          right-3
+                          text-[10px]
+                          text-emerald-400
+                          tracking-wider
+                        ">
+                          YOU
+                        </span>
+                      )}
+
+                      <div className="text-2xl mb-3">
+                        {isYou ? "👤" : "🎮"}
+                      </div>
+
+                      <h3 className="font-bold">
+                        {roomPlayer.name}
+                      </h3>
+
+                      <p className="text-gray-500 text-sm">
+                        {isYou
+                          ? "Player"
+                          : "Opponent"}
+                      </p>
+
+                      <p className="mt-4 text-emerald-400 font-semibold">
+                        💰 {roomPlayer.credits}
+                      </p>
+
+                      <p className="mt-1 text-gray-500 text-sm">
+                        Score: {roomPlayer.score}
+                      </p>
+
                     </div>
-
-                    <h3 className="font-bold">
-                      {player.name}
-                    </h3>
-
-                    <p className="text-gray-500 text-sm">
-                      {player.type === "human"
-                        ? "You"
-                        : "Opponent"}
-                    </p>
-
-                    <p className="mt-4 text-emerald-400 font-semibold">
-                      💰 {player.credits}
-                    </p>
-
-                    <p className="mt-1 text-gray-500 text-sm">
-                      Score: {player.score}
-                    </p>
-
-                  </div>
-                ))}
+                  );
+                })}
 
               </div>
 
-              {/* CURRENT PROBLEM */}
+              {/* PROBLEM */}
 
               <div className="
                 mt-8
@@ -783,21 +1059,41 @@ function App() {
                 bg-white/[0.02]
                 border border-white/10
                 rounded-xl
-                p-6
+                p-7
               ">
 
                 <p className="text-gray-500 text-xs tracking-wider">
                   NEXT PROBLEM
                 </p>
 
-                <h2 className="text-2xl font-bold mt-2">
+                <h2 className="text-3xl font-black mt-2">
                   {game.current_problem?.title}
                 </h2>
 
-                <p className="text-gray-500 text-sm mt-2">
-                  Starting bid: 💰{" "}
-                  {game.current_problem?.base_price}
-                </p>
+                <div className="flex justify-center gap-4 mt-4">
+
+                  <span className="
+                    px-3 py-1
+                    rounded-full
+                    bg-emerald-400/10
+                    text-emerald-400
+                    text-xs
+                  ">
+                    {game.current_problem?.difficulty}
+                  </span>
+
+                  <span className="
+                    px-3 py-1
+                    rounded-full
+                    bg-white/5
+                    text-gray-400
+                    text-xs
+                  ">
+                    START 💰{" "}
+                    {game.current_problem?.base_price}
+                  </span>
+
+                </div>
 
               </div>
 
@@ -813,10 +1109,11 @@ function App() {
                     hover:bg-emerald-400
                     hover:scale-105
                     transition-all
+                    disabled:opacity-50
                   "
                 >
                   {auctionLoading
-                    ? "OPENING AUCTION..."
+                    ? "OPENING TABLE..."
                     : "ENTER AUCTION"}
                 </button>
 
@@ -826,22 +1123,29 @@ function App() {
           )}
 
           {/* ==================================================
-              AUCTION
+              AUCTION TABLE
           ================================================== */}
 
           {auction && !result && (
+
             <section className="
               bg-black/60
               backdrop-blur-xl
               border border-emerald-400/20
-              rounded-2xl
+              rounded-3xl
               p-6 sm:p-8
             ">
 
+              {/* AUCTION HEADER */}
+
               <div className="text-center">
 
-                <p className="text-emerald-400 text-sm tracking-[0.3em]">
-                  ROUND {auction.round}
+                <p className="
+                  text-emerald-400
+                  text-xs
+                  tracking-[0.35em]
+                ">
+                  LIVE AUCTION
                 </p>
 
                 <h2 className="
@@ -853,88 +1157,104 @@ function App() {
                   {auction.problem.title}
                 </h2>
 
-                <p className="
-                  text-gray-400
-                  mt-3
-                  max-w-xl
-                  mx-auto
-                ">
+                <p className="text-gray-400 mt-3">
                   {auction.problem.description}
                 </p>
 
               </div>
 
-              {/* PROBLEM INFO */}
+              {/* TABLE PLAYERS */}
 
               <div className="
                 grid
                 grid-cols-2
-                sm:grid-cols-3
-                gap-4
+                lg:grid-cols-4
+                gap-3
                 mt-8
-                max-w-2xl
-                mx-auto
               ">
 
-                <div className="
-                  bg-white/[0.03]
-                  border border-white/10
-                  rounded-xl
-                  p-4
-                  text-center
-                ">
+                {game.players.map((roomPlayer) => {
 
-                  <p className="text-gray-500 text-xs">
-                    DIFFICULTY
-                  </p>
+                  const isLeader =
+                    auction.current_leader ===
+                    roomPlayer.id;
 
-                  <p className="font-bold mt-2">
-                    {auction.problem.difficulty}
-                  </p>
+                  const isYou =
+                    roomPlayer.id === "player";
 
-                </div>
+                  const isThinking =
+                    thinkingPlayer ===
+                    roomPlayer.name;
 
-                <div className="
-                  bg-white/[0.03]
-                  border border-white/10
-                  rounded-xl
-                  p-4
-                  text-center
-                ">
+                  return (
+                    <div
+                      key={roomPlayer.id}
+                      className={`
+                        rounded-xl
+                        border
+                        p-4
+                        transition-all
+                        duration-500
+                        ${
+                          isLeader
+                            ? "border-emerald-400 bg-emerald-400/[0.08] scale-[1.02]"
+                            : "border-white/10 bg-white/[0.02]"
+                        }
+                      `}
+                    >
 
-                  <p className="text-gray-500 text-xs">
-                    BASE PRICE
-                  </p>
+                      <div className="flex justify-between">
 
-                  <p className="font-bold mt-2">
-                    💰 {auction.problem.base_price}
-                  </p>
+                        <span className="text-xl">
+                          {isYou ? "👤" : "🎮"}
+                        </span>
 
-                </div>
+                        {isLeader && (
+                          <span className="
+                            text-[9px]
+                            text-emerald-400
+                            tracking-wider
+                          ">
+                            LEADING
+                          </span>
+                        )}
 
-                <div className="
-                  bg-white/[0.03]
-                  border border-white/10
-                  rounded-xl
-                  p-4
-                  text-center
-                  col-span-2
-                  sm:col-span-1
-                ">
+                      </div>
 
-                  <p className="text-gray-500 text-xs">
-                    POINTS
-                  </p>
+                      <p className="font-bold mt-3">
+                        {roomPlayer.name}
+                      </p>
 
-                  <p className="
-                    font-bold
-                    mt-2
-                    text-emerald-400
-                  ">
-                    +{auction.problem.points}
-                  </p>
+                      <p className="text-gray-500 text-xs">
+                        {isYou
+                          ? "You"
+                          : "Opponent"}
+                      </p>
 
-                </div>
+                      <p className="text-emerald-400 font-semibold mt-3">
+                        💰 {roomPlayer.credits}
+                      </p>
+
+                      {isThinking && (
+                        <div className="
+                          mt-3
+                          flex
+                          items-center
+                          gap-2
+                          text-yellow-400
+                          text-xs
+                        ">
+                          <span className="animate-pulse">
+                            ●
+                          </span>
+
+                          thinking...
+                        </div>
+                      )}
+
+                    </div>
+                  );
+                })}
 
               </div>
 
@@ -942,13 +1262,17 @@ function App() {
 
               <div className="text-center mt-10">
 
-                <p className="text-gray-500 text-sm tracking-wider">
+                <p className="
+                  text-gray-500
+                  text-xs
+                  tracking-[0.25em]
+                ">
                   CURRENT BID
                 </p>
 
                 <p className="
-                  text-5xl
-                  sm:text-6xl
+                  text-6xl
+                  sm:text-7xl
                   font-black
                   text-emerald-400
                   mt-2
@@ -956,96 +1280,166 @@ function App() {
                   💰 {auction.current_bid}
                 </p>
 
-                <p className="mt-5 text-gray-400">
-                  Leader:{" "}
+                <p className="mt-4 text-gray-400">
 
-                  <span className="text-white font-semibold">
-                    {auction.current_leader
-                      ? auction.current_leader === "player"
-                        ? "You"
-                        : game.players.find(
-                            (p) => p.id === auction.current_leader
-                          )?.name || auction.current_leader
-                      : "No bids"}
-                  </span>
+                  {auction.current_leader === "player"
+                    ? "You are leading."
+                    : auction.current_leader
+                      ? `${
+                          game.players.find(
+                            (p) =>
+                              p.id ===
+                              auction.current_leader
+                          )?.name ||
+                          "Opponent"
+                        } is leading.`
+                      : "No bids yet."}
+
                 </p>
 
               </div>
 
-              {/* BOT */}
-
-              {auction.bot_response && (
-                <div className="mt-5 text-center">
-
-                  <span className="
-                    inline-block
-                    px-4 py-2
-                    rounded-full
-                    bg-yellow-400/10
-                    border border-yellow-400/20
-                    text-yellow-400
-                    text-sm
-                  ">
-                    🤖{" "}
-                    {auction.bot_response.name}
-                    {" "}bid{" "}
-                    {auction.bot_response.bid}
-                  </span>
-
-                </div>
-              )}
-
-              <p className="mt-6 text-center text-gray-500 text-sm">
-                Each bid must be higher than the current bid. The highest bidder wins when you end the auction.
-              </p>
-
-              {/* CONTROLS */}
+              {/* AUCTION STATUS */}
 
               <div className="
+                mt-7
                 flex
-                flex-col
-                sm:flex-row
                 justify-center
-                gap-4
-                mt-9
               ">
 
-                <button
-                  onClick={placeBid}
-                  disabled={bidding}
-                  className="
-                    px-8 py-4
-                    bg-emerald-400
-                    text-black
-                    font-bold
-                    rounded-xl
-                    hover:bg-emerald-300
-                    hover:scale-105
-                    transition-all
-                    disabled:opacity-50
-                  "
-                >
-                  {bidding
-                    ? "BIDDING..."
-                    : `BID 💰 ${bidAmount}`}
-                </button>
+                <div className="
+                  px-6 py-3
+                  rounded-full
+                  bg-white/[0.04]
+                  border border-white/10
+                  text-sm
+                ">
+
+                  {thinkingPlayer ? (
+                    <span className="text-yellow-400">
+                      ◌ {thinkingPlayer} is thinking...
+                    </span>
+                  ) : (
+                    <span className="text-gray-300">
+                      {auctionMessage ||
+                        "Your turn."}
+                    </span>
+                  )}
+
+                </div>
+
+              </div>
+
+              {/* BID CONTROL */}
+
+              <div className="
+                mt-8
+                max-w-xl
+                mx-auto
+              ">
+
+                <div className="
+                  flex
+                  flex-col
+                  sm:flex-row
+                  gap-3
+                ">
+
+                  <input
+                    type="number"
+                    min={
+                      auction.current_bid + 50
+                    }
+                    max={player?.credits}
+                    value={bidAmount}
+                    onChange={(e) =>
+                      setBidAmount(
+                        Number(e.target.value)
+                      )
+                    }
+                    disabled={
+                      bidding ||
+                      thinkingPlayer !== null
+                    }
+                    className="
+                      flex-1
+                      px-5 py-4
+                      bg-white/[0.04]
+                      border border-white/10
+                      rounded-xl
+                      text-white
+                      outline-none
+                      focus:border-emerald-400/50
+                    "
+                  />
+
+                  <button
+                    onClick={placeBid}
+                    disabled={
+                      bidding ||
+                      thinkingPlayer !== null ||
+                      bidAmount <= auction.current_bid ||
+                      bidAmount > (player?.credits ?? 0)
+                    }
+                    className="
+                      px-8 py-4
+                      bg-emerald-400
+                      text-black
+                      font-bold
+                      rounded-xl
+                      hover:bg-emerald-300
+                      hover:scale-[1.02]
+                      transition-all
+                      disabled:opacity-40
+                      disabled:cursor-not-allowed
+                    "
+                  >
+                    {bidding
+                      ? "PROCESSING..."
+                      : `BID 💰 ${bidAmount}`}
+                  </button>
+
+                </div>
+
+                <p className="
+                  text-center
+                  text-gray-600
+                  text-xs
+                  mt-3
+                ">
+                  Minimum next bid: 💰{" "}
+                  {auction.current_bid + 50}
+                </p>
+
+              </div>
+
+              {/* END AUCTION */}
+
+              <div className="text-center mt-8">
 
                 <button
                   onClick={finalizeAuction}
-                  disabled={finalizing || !auction.current_leader}
+                  disabled={
+                    finalizing ||
+                    bidding ||
+                    thinkingPlayer !== null ||
+                    auction.current_leader === null
+                  }
                   className="
-                    px-8 py-4
-                    border border-white/20
+                    px-8 py-3
+                    border border-white/10
+                    text-gray-400
                     rounded-xl
-                    font-bold
-                    hover:bg-white/10
+                    text-sm
+                    hover:bg-white/5
+                    hover:text-white
                     transition-all
-                    disabled:opacity-50
+                    disabled:opacity-30
                   "
                 >
                   {finalizing
-                    ? "FINALIZING..."
-                    : "END AUCTION"}
+                    ? "CLOSING AUCTION..."
+                    : "CLOSE AUCTION"}
                 </button>
 
               </div>
@@ -1054,21 +1448,26 @@ function App() {
           )}
 
           {/* ==================================================
-              ROUND RESULT
+              PROBLEM ACQUIRED
           ================================================== */}
 
           {result && !finalGame && (
+
             <section className="
               bg-black/70
               backdrop-blur-xl
               border border-emerald-400/30
-              rounded-2xl
+              rounded-3xl
               p-8 sm:p-10
               text-center
             ">
 
-              <p className="text-emerald-400 text-sm tracking-[0.3em]">
-                ROUND {result.round} COMPLETE
+              <p className="
+                text-emerald-400
+                text-sm
+                tracking-[0.3em]
+              ">
+                PROBLEM ACQUIRED
               </p>
 
               <h2 className="
@@ -1077,11 +1476,14 @@ function App() {
                 font-black
                 mt-4
               ">
-                🏆 {result.winner.name}
+                {result.winner.name}
               </h2>
 
               <p className="text-gray-400 mt-3">
-                won {result.problem.title}
+                acquired{" "}
+                <span className="text-white font-semibold">
+                  {result.problem.title}
+                </span>
               </p>
 
               <div className="
@@ -1101,7 +1503,7 @@ function App() {
                   p-5
                 ">
 
-                  <p className="text-gray-500 text-sm">
+                  <p className="text-gray-500 text-xs">
                     WINNING BID
                   </p>
 
@@ -1118,17 +1520,21 @@ function App() {
                   p-5
                 ">
 
-                  <p className="text-gray-500 text-sm">
-                    POINTS
+                  <p className="text-gray-500 text-xs">
+                    POINTS NOW
                   </p>
 
                   <p className="
                     text-2xl
                     font-bold
                     mt-2
-                    text-emerald-400
+                    text-yellow-400
                   ">
-                    +{result.problem.points}
+                    0
+                  </p>
+
+                  <p className="text-gray-600 text-xs mt-1">
+                    Solve the problem to earn points.
                   </p>
 
                 </div>
@@ -1140,15 +1546,38 @@ function App() {
                   p-5
                 ">
 
-                  <p className="text-gray-500 text-sm">
+                  <p className="text-gray-500 text-xs">
                     YOUR CREDITS
                   </p>
 
                   <p className="text-2xl font-bold mt-2">
-                    💰 {player?.credits ?? 0}
+                    💰{" "}
+                    {player?.credits ?? 0}
                   </p>
 
                 </div>
+
+              </div>
+
+              <div className="
+                mt-8
+                px-5 py-4
+                rounded-xl
+                bg-emerald-400/[0.05]
+                border border-emerald-400/10
+              ">
+
+                <p className="text-gray-300 text-sm">
+                  The problem is yours.
+                </p>
+
+                <p className="
+                  text-emerald-400
+                  font-semibold
+                  mt-1
+                ">
+                  The coding arena comes next.
+                </p>
 
               </div>
 
