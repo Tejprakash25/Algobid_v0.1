@@ -28,7 +28,7 @@ app.add_middleware(
 # ==========================================================
 
 STARTING_CREDITS = 1000
-TOTAL_ROUNDS = 3
+TOTAL_ROUNDS = 4
 BID_INCREMENT = 50
 
 
@@ -189,12 +189,12 @@ PROBLEMS = [
 # ==========================================================
 
 PROBLEM_SETS = [
-    [1, 2, 3],
-    [4, 5, 6],
-    [7, 8, 9],
-    [10, 11, 12],
-    [13, 14, 15],
-    [16, 17, 18],
+    [1, 2, 3, 4],
+    [5, 6, 7, 8],
+    [9, 10, 11, 12],
+    [13, 14, 15, 16],
+    [17, 18, 1, 5],
+    [2, 6, 10, 14],
 ]
 
 
@@ -543,6 +543,51 @@ def place_bid(game_id: str, amount: int):
         "status": game["status"],
     }
 
+# ==========================================================
+# M7-C — AUCTION TIMER TIMEOUT
+# ==========================================================
+
+@app.post("/api/game/{game_id}/bid/timeout")
+def bid_timeout(game_id: str):
+    game = games.get(game_id)
+
+    if not game:
+        return {
+            "success": False,
+            "error": "Game not found",
+        }
+
+    if game["status"] != "auction":
+        return {
+            "success": False,
+            "error": "Auction is not active",
+        }
+
+    # A random eligible bot gets the next bid.
+    bot_result = bot_bid(game)
+
+    if not bot_result:
+        return {
+            "success": True,
+            "game_id": game_id,
+            "timeout": True,
+            "bot_response": None,
+            "current_bid": game["current_bid"],
+            "current_leader": game["current_leader"],
+            "message": "No opponent raised the bid.",
+            "status": game["status"],
+        }
+
+    return {
+        "success": True,
+        "game_id": game_id,
+        "timeout": True,
+        "bot_response": bot_result,
+        "current_bid": game["current_bid"],
+        "current_leader": game["current_leader"],
+        "message": f"{bot_result['name']} bid {bot_result['bid']}.",
+        "status": game["status"],
+    }
 
 # ==========================================================
 # FINALIZE AUCTION

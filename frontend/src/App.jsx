@@ -6,7 +6,7 @@ const API_URL = "http://127.0.0.1:8000";
 const BOT_IDS = ["bot-arjun", "bot-rohan", "bot-aditya"];
 
 const sleep = (ms) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+  new Promise((resolve) => setTimeodut(resolve, ms));
 
 function App() {
   const [game, setGame] = useState(null);
@@ -21,11 +21,101 @@ function App() {
   const [nextLoading, setNextLoading] = useState(false);
 
   const [bidAmount, setBidAmount] = useState(150);
+  const [bidTimer, setBidTimer] = useState(10);
+  const [timerActive, setTimerActive] = useState(false);
 
   const [auctionMessage, setAuctionMessage] = useState("");
   const [thinkingPlayer, setThinkingPlayer] = useState(null);
 
   const [error, setError] = useState("");
+
+  const handleBidTimeout = async () => {
+  if (!auction || bidding || thinkingPlayer !== null) {
+    return;
+  }
+
+  setTimerActive(false);
+  setBidding(true);
+  setThinkingPlayer("Opponent");
+  setAuctionMessage("Time's up. Someone else is bidding...");
+
+  try {
+    const response = await fetch(
+      `${API_URL}/api/game/${game.game_id}/bid/timeout`,
+      {
+        method: "POST",
+      }
+    );
+
+    const data = await response.json();
+
+    if (!data.success) {
+      setError(data.error);
+      return;
+    }
+
+    if (!data.bot_response) {
+      setThinkingPlayer(null);
+      setAuctionMessage(
+        "No opponent raised the bid. Your problem is still alive."
+      );
+      return;
+    }
+
+    const bot = data.bot_response;
+
+    await sleep(900);
+
+    setThinkingPlayer(null);
+
+    setAuction((previous) => ({
+      ...previous,
+      current_bid: data.current_bid,
+      current_leader: data.current_leader,
+      bot_response: bot,
+    }));
+
+    setBidAmount(data.current_bid + 50);
+
+    setAuctionMessage(
+      `${bot.name} bid ${bot.bid}. Your turn.`
+    );
+
+    setBidTimer(10);
+    setTimerActive(true);
+
+  } catch (err) {
+    console.error(err);
+    setError("Unable to process timeout bid.");
+    setThinkingPlayer(null);
+  } finally {
+    setBidding(false);
+  }
+};
+
+
+  useEffect(() => {
+  if (!auction || !timerActive || bidding || thinkingPlayer !== null) {
+    return;
+  }
+
+  if (bidTimer <= 0) {
+    handleBidTimeout();
+    return;
+  }
+
+  const timer = setTimeout(() => {
+    setBidTimer((previous) => previous - 1);
+  }, 1000);
+
+  return () => clearTimeout(timer);
+}, [
+  auction,
+  timerActive,
+  bidTimer,
+  bidding,
+  thinkingPlayer,
+]);
 
   // ==========================================================
   // START GAME
@@ -98,11 +188,14 @@ function App() {
       }
 
       setAuction(data);
-      setBidAmount(data.current_bid + 50);
+setBidAmount(data.current_bid + 50);
 
-      setAuctionMessage(
-        "Auction is open. Place your bid."
-      );
+setBidTimer(10);
+setTimerActive(true);
+
+setAuctionMessage(
+  "Auction is open. Place your bid."
+);
     } catch (err) {
       console.error(err);
       setError("Unable to start auction.");
@@ -110,6 +203,7 @@ function App() {
       setAuctionLoading(false);
     }
   };
+
 
   // ==========================================================
   // PLACE BID
@@ -119,6 +213,7 @@ function App() {
     if (bidding || !auction) return;
 
     setBidding(true);
+    setTimerActive(false);
     setError("");
     setAuctionMessage("Your bid is being processed...");
     setThinkingPlayer(null);
@@ -195,6 +290,8 @@ function App() {
       );
 
       setBidAmount(data.current_bid + 50);
+      setBidTimer(10);
+      setTimerActive(true);
     } catch (err) {
       console.error(err);
       setError("Bid failed.");
@@ -212,6 +309,7 @@ function App() {
     if (finalizing || !auction) return;
 
     setFinalizing(true);
+    setTimerActive(false);
     setError("");
 
     try {
@@ -317,6 +415,8 @@ function App() {
 
   setAuction(null);
   setResult(null);
+  setTimerActive(false);
+  setBidTimer(10);
 
   return;
 }
@@ -814,6 +914,8 @@ if (finalGame) {
   );
 }
 
+
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-black text-white">
       <Background />
@@ -1298,6 +1400,38 @@ if (finalGame) {
                 </p>
 
               </div>
+
+              {/* BID TIMER */}
+
+<div className="text-center mt-6">
+
+  <p className="
+    text-gray-500
+    text-[10px]
+    tracking-[0.25em]
+  ">
+    YOUR TURN
+  </p>
+
+  <div className="
+    mt-2
+    text-4xl
+    font-black
+    text-white
+  ">
+    {bidTimer}
+  </div>
+
+  <p className="
+    mt-1
+    text-[9px]
+    text-gray-600
+    italic
+  ">
+    No bid? Enjoy solving someone else's problem.
+  </p>
+
+</div>
 
               {/* AUCTION STATUS */}
 
