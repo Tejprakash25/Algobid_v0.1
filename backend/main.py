@@ -197,6 +197,26 @@ PROBLEM_SETS = [
     [2, 6, 10, 14],
 ]
 
+INDIAN_BOT_NAMES = [
+    "Rohan Patil",
+    "Arjun Sharma",
+    "Aditya Kulkarni",
+    "Sarthak Joshi",
+    "Shreyas Deshmukh",
+    "Vedant More",
+    "Atharva Jadhav",
+    "Omkar Shinde",
+    "Yash Thakur",
+    "Siddharth Pawar",
+    "Kunal Verma",
+    "Akshay Chavan",
+    "Harsh Vaidya",
+    "Pranav Kulkarni",
+    "Tanmay Bhosale",
+    "Nikhil Desai",
+    "Aman Gupta",
+    "Manav Joshi",
+]
 
 # ==========================================================
 # BOT CONFIGURATION
@@ -205,19 +225,19 @@ PROBLEM_SETS = [
 BOT_CONFIG = [
     {
         "id": "bot-arjun",
-        "name": "Arjun Sharma",
+        "name": None,
         "style": "aggressive",
         "max_bid": 500,
     },
     {
         "id": "bot-rohan",
-        "name": "Rohan Patil",
+        "name": None,
         "style": "balanced",
         "max_bid": 400,
     },
     {
         "id": "bot-aditya",
-        "name": "Aditya Kulkarni",
+        "name": None,
         "style": "conservative",
         "max_bid": 300,
     },
@@ -374,8 +394,11 @@ def health():
 def start_game():
     game_id = str(uuid4())
 
-    # Select one of six predefined 3-problem sets.
+    # Select one predefined problem set.
     selected_set = random.choice(PROBLEM_SETS)
+
+    # Pick 3 different Indian names for this game.
+    selected_names = random.sample(INDIAN_BOT_NAMES, 3)
 
     players = [
         {
@@ -388,11 +411,13 @@ def start_game():
         }
     ]
 
-    for config in BOT_CONFIG:
+    # Keep existing bot IDs, styles and max-bid behavior.
+    # Only the displayed names change every new game.
+    for config, name in zip(BOT_CONFIG, selected_names):
         players.append(
             {
                 "id": config["id"],
-                "name": config["name"],
+                "name": name,
                 "type": "bot",
                 "credits": STARTING_CREDITS,
                 "score": 0,
@@ -406,11 +431,11 @@ def start_game():
         "game_id": game_id,
         "players": players,
 
-        # Exactly 3 rounds.
+        # Number of rounds is controlled by TOTAL_ROUNDS.
         "current_round": 1,
         "total_rounds": TOTAL_ROUNDS,
 
-        # Selected 3-problem set.
+        # Selected problem set.
         "problem_set": selected_set,
 
         # Current auction state.
@@ -432,7 +457,6 @@ def start_game():
     }
 
     return public_game_state(games[game_id])
-
 
 # ==========================================================
 # START AUCTION

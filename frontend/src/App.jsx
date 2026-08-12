@@ -6,7 +6,7 @@ const API_URL = "http://127.0.0.1:8000";
 const BOT_IDS = ["bot-arjun", "bot-rohan", "bot-aditya"];
 
 const sleep = (ms) =>
-  new Promise((resolve) => setTimeodut(resolve, ms));
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 function App() {
   const [game, setGame] = useState(null);
@@ -50,17 +50,24 @@ function App() {
     const data = await response.json();
 
     if (!data.success) {
-      setError(data.error);
-      return;
-    }
+  setError(data.error);
+  setThinkingPlayer(null);
+  setBidTimer(10);
+  setTimerActive(true);
+  return;
+}
 
     if (!data.bot_response) {
-      setThinkingPlayer(null);
-      setAuctionMessage(
-        "No opponent raised the bid. Your problem is still alive."
-      );
-      return;
-    }
+  setThinkingPlayer(null);
+  setAuctionMessage(
+    "No opponent raised the bid. Your problem is still alive."
+  );
+
+  setBidTimer(10);
+  setTimerActive(true);
+
+  return;
+}
 
     const bot = data.bot_response;
 
@@ -250,14 +257,18 @@ setAuctionMessage(
       // ------------------------------------------------------
 
       if (!data.bot_response) {
-        await sleep(900);
+  await sleep(900);
 
-        setAuctionMessage(
-          "No opponent raised the bid."
-        );
+  setAuctionMessage(
+    "No opponent raised the bid. Your turn."
+  );
 
-        return;
-      }
+  setThinkingPlayer(null);
+  setBidTimer(10);
+  setTimerActive(true);
+
+  return;
+}
 
       // ------------------------------------------------------
       // Bot is now "thinking".
@@ -293,12 +304,18 @@ setAuctionMessage(
       setBidTimer(10);
       setTimerActive(true);
     } catch (err) {
-      console.error(err);
-      setError("Bid failed.");
-      setAuctionMessage("Your turn.");
-    } finally {
-      setBidding(false);
-    }
+  console.error(err);
+
+  setError("Bid failed.");
+  setAuctionMessage("Your turn.");
+
+  setThinkingPlayer(null);
+  setBidding(false);
+  setBidTimer(10);
+  setTimerActive(true);
+} finally {
+  setBidding(false);
+}
   };
 
   // ==========================================================
