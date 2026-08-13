@@ -293,6 +293,7 @@ def public_game_state(game):
         "players": game["players"],
         "round_history": game["round_history"],
         "first_game": game["first_game"],
+        "skipped_bidders": game["skipped_bidders"],
     }
 
 
@@ -317,6 +318,10 @@ def bot_bid(game):
         bot = get_player(game, config["id"])
 
         if not bot:
+            continue
+
+        # A skipped player cannot participate in this auction.
+        if bot["id"] in game["skipped_bidders"]:
             continue
 
         # Don't allow the current leader to bid against itself.
@@ -449,6 +454,9 @@ def start_game():
         "acquired_problem": None,
         "acquired_by": None,
 
+        # Players who voluntarily skipped this auction.
+        "skipped_bidders": [],
+
         # Round history.
         "round_history": [],
 
@@ -493,6 +501,9 @@ def start_auction(game_id: str):
     game["acquired_problem"] = None
     game["acquired_by"] = None
 
+    # Every new problem starts with everyone eligible again.
+    game["skipped_bidders"] = []
+
     return {
         "success": True,
         "game_id": game_id,
@@ -534,6 +545,12 @@ def place_bid(game_id: str, amount: int):
             "error": "Player not found",
         }
 
+    if "player" in game["skipped_bidders"]:
+        return {
+            "success": False,
+            "error": "You skipped this auction.",
+        }
+
     if amount <= game["current_bid"]:
         return {
             "success": False,
@@ -565,6 +582,48 @@ def place_bid(game_id: str, amount: int):
         "player_credits": player["credits"],
         "bot_response": bot_result,
         "status": game["status"],
+    }
+
+# ==========================================================
+# NOT INTERESTED
+# ==========================================================
+
+@app.post("/api/game/{game_id}/not-interested")
+def not_interested(game_id: str):
+    game = games.get(game_id)
+
+    if not game:
+        return {
+            "success": False,
+            "error": "Game not found",
+        }
+
+    if game["status"] != "auction":
+        return {
+            "success": False,
+            "error": "Auction is not active",
+        }
+
+    # You cannot withdraw after becoming the current leader.
+    # You are already winning the problem at this point.
+    if game["current_leader"] == "player":
+        return {
+            "success": False,
+            "error": "You are currently leading this auction.",
+        }
+
+    if "player" not in game["skipped_bidders"]:
+        game["skipped_bidders"].append("player")
+
+    return {
+        "success": True,
+        "game_id": game_id,
+        "skipped": True,
+        "current_bid": game["current_bid"],
+        "current_leader": game["current_leader"],
+        "players": game["players"],
+        "status": game["status"],
+        "message": "You are no longer bidding in this auction.",
     }
 
 # ==========================================================

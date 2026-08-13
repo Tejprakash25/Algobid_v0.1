@@ -23,6 +23,7 @@ function App() {
   const [bidAmount, setBidAmount] = useState(150);
   const [bidTimer, setBidTimer] = useState(10);
   const [timerActive, setTimerActive] = useState(false);
+  const [notInterested, setNotInterested] = useState(false);
 
   const [auctionMessage, setAuctionMessage] = useState("");
   const [thinkingPlayer, setThinkingPlayer] = useState(null);
@@ -57,17 +58,19 @@ function App() {
   return;
 }
 
-    if (!data.bot_response) {
-  setThinkingPlayer(null);
-  setAuctionMessage(
-    "No opponent raised the bid. Your problem is still alive."
-  );
+        if (!data.bot_response) {
+      setThinkingPlayer(null);
+      setBidding(false);
+      setAuctionMessage(
+        "No higher bid. Highest bidder wins."
+      );
 
-  setBidTimer(10);
-  setTimerActive(true);
+      await sleep(700);
 
-  return;
-}
+      await finalizeAuction();
+
+      return;
+    }
 
     const bot = data.bot_response;
 
@@ -178,6 +181,7 @@ function App() {
     setError("");
     setAuctionMessage("");
     setThinkingPlayer(null);
+    setNotInterested(false);
 
     try {
       const response = await fetch(
@@ -256,19 +260,19 @@ setAuctionMessage(
       // Player remains leader.
       // ------------------------------------------------------
 
-      if (!data.bot_response) {
-  await sleep(900);
+            if (!data.bot_response) {
+        setThinkingPlayer(null);
+        setBidding(false);
+        setAuctionMessage(
+          "No higher bid. You win the problem."
+        );
 
-  setAuctionMessage(
-    "No opponent raised the bid. Your turn."
-  );
+        await sleep(700);
 
-  setThinkingPlayer(null);
-  setBidTimer(10);
-  setTimerActive(true);
+        await finalizeAuction();
 
-  return;
-}
+        return;
+      }
 
       // ------------------------------------------------------
       // Bot is now "thinking".
@@ -316,6 +320,54 @@ setAuctionMessage(
 } finally {
   setBidding(false);
 }
+  };
+
+    // ==========================================================
+  // NOT INTERESTED
+  // ==========================================================
+
+  const notInterestedAuction = async () => {
+    if (
+      !game ||
+      !auction ||
+      bidding ||
+      thinkingPlayer !== null ||
+      auction.current_leader === "player" ||
+      notInterested
+    ) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/game/${game.game_id}/not-interested`,
+        {
+          method: "POST",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!data.success) {
+        setError(data.error);
+        return;
+      }
+
+      setNotInterested(true);
+      setTimerActive(true);
+      setAuctionMessage(
+        "You skipped this problem. Watch the auction."
+      );
+
+      setAuction((previous) => ({
+        ...previous,
+        current_bid: data.current_bid,
+        current_leader: data.current_leader,
+      }));
+    } catch (err) {
+      console.error(err);
+      setError("Unable to skip this auction.");
+    }
   };
 
   // ==========================================================
@@ -456,6 +508,9 @@ setAuctionMessage(
       setResult(null);
       setAuctionMessage("");
       setThinkingPlayer(null);
+      setNotInterested(false);
+      setBidTimer(10);
+      setTimerActive(false);
       setBidAmount(data.current_bid + 50);
     } catch (err) {
       console.error(err);
@@ -482,6 +537,9 @@ setAuctionMessage(
     setNextLoading(false);
 
     setBidAmount(150);
+    setBidTimer(10);
+    setTimerActive(false);
+    setNotInterested(false);
     setAuctionMessage("");
     setThinkingPlayer(null);
     setError("");
@@ -1509,9 +1567,10 @@ if (finalGame) {
                       )
                     }
                     disabled={
-                      bidding ||
-                      thinkingPlayer !== null
-                    }
+  bidding ||
+  thinkingPlayer !== null ||
+  notInterested
+}
                     className="
                       flex-1
                       px-5 py-4
@@ -1529,6 +1588,7 @@ if (finalGame) {
                     disabled={
                       bidding ||
                       thinkingPlayer !== null ||
+                      notInterested ||
                       bidAmount <= auction.current_bid ||
                       bidAmount > (player?.credits ?? 0)
                     }
@@ -1564,20 +1624,20 @@ if (finalGame) {
 
               </div>
 
-              {/* END AUCTION */}
+                            {/* NOT INTERESTED */}
 
               <div className="text-center mt-8">
 
                 <button
-                  onClick={finalizeAuction}
+                  onClick={notInterestedAuction}
                   disabled={
-                    finalizing ||
+                    notInterested ||
                     bidding ||
                     thinkingPlayer !== null ||
-                    auction.current_leader === null
+                    auction.current_leader === "player"
                   }
                   className="
-                    px-8 py-3
+                    px-7 py-3
                     border border-white/10
                     text-gray-400
                     rounded-xl
@@ -1586,15 +1646,27 @@ if (finalGame) {
                     hover:text-white
                     transition-all
                     disabled:opacity-30
+                    disabled:cursor-not-allowed
                   "
                 >
-                  {finalizing
-                    ? "CLOSING AUCTION..."
-                    : "CLOSE AUCTION"}
+                  {notInterested
+                    ? "NOT INTERESTED ✓"
+                    : "NOT INTERESTED"}
                 </button>
 
-              </div>
+                <p className="
+                  mt-3
+                  text-[10px]
+                  text-gray-600
+                  max-w-md
+                  mx-auto
+                  leading-relaxed
+                ">
+                  Please participate in further auctions.
+                  Skip them all and you may have no problem left to solve.
+                </p>
 
+              </div>
             </section>
           )}
 
