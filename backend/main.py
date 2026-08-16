@@ -1,15 +1,19 @@
+import random
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 from uuid import uuid4
-import random
 
+from database import initialize_database, create_user
 
 # ==========================================================
 # APP
 # ==========================================================
 
 app = FastAPI(title="AlgoBid v0.1")
-
+print("INITIALIZING ALGOBID DATABASE...")
+initialize_database()
+print("DATABASE INITIALIZATION COMPLETE")
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,6 +26,73 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ==========================================================
+# USER REGISTRATION
+# ==========================================================
+
+class RegisterRequest(BaseModel):
+    username: str = Field(
+        min_length=3,
+        max_length=20
+    )
+
+    email: str = Field(
+        min_length=5,
+        max_length=100
+    )
+
+    password: str = Field(
+        min_length=8,
+        max_length=128
+    )
+
+@app.post("/api/auth/register")
+def register_user(request: RegisterRequest):
+
+    username = request.username.strip()
+    email = request.email.strip().lower()
+
+    if not username:
+        return {
+            "success": False,
+            "error": "Username cannot be empty."
+        }
+
+    if (
+        "@" not in email
+        or "." not in email.split("@")[-1]
+    ):
+        return {
+            "success": False,
+            "error": "Please enter a valid email address."
+        }
+
+    if not any(char.isalpha() for char in username):
+        return {
+            "success": False,
+            "error": (
+                "Username must contain at least one letter."
+            )
+        }
+
+    try:
+        user = create_user(
+            username=username,
+            email=email,
+            password=request.password,
+        )
+
+        return {
+            "success": True,
+            "message": "Account created successfully.",
+            "user": user,
+        }
+
+    except ValueError as error:
+        return {
+            "success": False,
+            "error": str(error),
+        }
 
 # ==========================================================
 # GAME CONSTANTS

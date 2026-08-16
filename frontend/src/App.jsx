@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Background from "./Background";
+import Register from "./Register";
 
 const API_URL = "http://127.0.0.1:8000";
 
@@ -13,6 +14,8 @@ function App() {
   const [auction, setAuction] = useState(null);
   const [result, setResult] = useState(null);
   const [finalGame, setFinalGame] = useState(null);
+
+  const [showRegister, setShowRegister] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [auctionLoading, setAuctionLoading] = useState(false);
@@ -554,6 +557,17 @@ setAuctionMessage(
       (p) => p.id === "player"
     );
 
+  if (!game && showRegister) {
+  return (
+    <Register
+      onBack={() => {
+        setShowRegister(false);
+        setError("");
+      }}
+    />
+  );
+}
+
   // ==========================================================
   // LANDING
   // ==========================================================
@@ -602,6 +616,28 @@ setAuctionMessage(
                 ? "CREATING GAME..."
                 : "PLAY AS GUEST"}
             </button>
+            <button
+  onClick={() => {
+    setShowRegister(true);
+    setError("");
+  }}
+  className="
+    mt-3
+    px-9
+    py-3
+    border
+    border-white/10
+    text-gray-400
+    text-sm
+    font-semibold
+    rounded-xl
+    hover:bg-white/5
+    hover:text-white
+    transition-all
+  "
+>
+  CREATE ACCOUNT
+</button>
 
             {error && (
               <p className="mt-5 text-red-400 text-sm">
