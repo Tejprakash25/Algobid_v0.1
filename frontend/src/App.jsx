@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Background from "./Background";
-import Register from "./Register";
+
 
 const API_URL = "http://127.0.0.1:8000";
 
@@ -616,28 +616,7 @@ setAuctionMessage(
                 ? "CREATING GAME..."
                 : "PLAY AS GUEST"}
             </button>
-            <button
-  onClick={() => {
-    setShowRegister(true);
-    setError("");
-  }}
-  className="
-    mt-3
-    px-9
-    py-3
-    border
-    border-white/10
-    text-gray-400
-    text-sm
-    font-semibold
-    rounded-xl
-    hover:bg-white/5
-    hover:text-white
-    transition-all
-  "
->
-  CREATE ACCOUNT
-</button>
+            
 
             {error && (
               <p className="mt-5 text-red-400 text-sm">
@@ -1237,7 +1216,7 @@ if (finalGame) {
                       )}
 
                       <div className="text-2xl mb-3">
-                        {isYou ? "👤" : "🎮"}
+                        👤
                       </div>
 
                       <h3 className="font-bold">
@@ -1419,7 +1398,7 @@ if (finalGame) {
                       <div className="flex justify-between">
 
                         <span className="text-xl">
-                          {isYou ? "👤" : "🎮"}
+                          👤
                         </span>
 
                         {isLeader && (
