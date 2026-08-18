@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Background from "./Background";
+import CodingPage from "./CodingPage";
 
 
 const API_URL = "http://127.0.0.1:8000";
@@ -32,6 +33,8 @@ function App() {
   const [thinkingPlayer, setThinkingPlayer] = useState(null);
 
   const [error, setError] = useState("");
+
+  const [codingProblem, setCodingProblem] = useState(null);
 
   const handleBidTimeout = async () => {
   if (!auction || bidding || thinkingPlayer !== null) {
@@ -630,6 +633,16 @@ setAuctionMessage(
     );
   }
 
+if (codingProblem) {
+  return (
+    <CodingPage
+      problem={codingProblem}
+      onBack={() => {
+        setCodingProblem(null);
+      }}
+    />
+  );
+}
 // ==========================================================
 // GAME COMPLETE — M7-B
 // ==========================================================
@@ -975,7 +988,27 @@ if (finalGame) {
           ">
 
             <button
-              onClick={startCoding}
+              onClick={() => {
+  const acquired = finalGame?.round_history?.find(
+    (round) =>
+      round.winner_id === "player"
+  );
+
+  if (!acquired) {
+    return;
+  }
+
+  setCodingProblem({
+    id: acquired.problem_id,
+    title: acquired.problem_title,
+    difficulty: acquired.difficulty ?? "Easy",
+    description:
+      acquired.problem_description ??
+      "Solve the acquired programming problem.",
+    points: acquired.points_awarded ?? 1000,
+    winning_bid: acquired.winning_bid,
+  });
+}}
               className="
                 px-10
                 py-4
